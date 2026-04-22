@@ -1,0 +1,334 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO.Ports;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace WindowsFormsApp_PCcontrolMachine
+{
+    public partial class Form1 : Form
+    {
+        private SerialPort serialPort;
+        
+        private Panel[] X_Lights = new Panel[16];
+        private Panel[] Y_Lights = new Panel[16];
+
+        private string[] Y_Names = { "Y0", "Y1", "Y2", "Y3", "Y4", "Y5", "Y6", "Y7", "Y10", "Y11", "Y12", "Y13", "Y14", "Y15", "Y16", "Y17" };
+        private string[] X_Names = { "X0", "X1", "X2", "X3", "X4", "X5", "X6", "X7", "X10", "X11", "X12", "X13", "X14", "X15", "X16", "X17" };
+
+        public static readonly string ReadYCommand = "02 30 30 30 41 30 30 32 03 36 36";
+        public static readonly string ReadXCommand = "02 30 30 30 38 30 30 32 03 35 44";
+
+        public static readonly Dictionary<string, string> ForceOnCommands = new Dictionary<string, string> {
+            {"Y0", "02 37 30 30 30 35 03 46 46"},
+            {"Y1", "02 37 30 31 30 35 03 30 30"},
+            {"Y2", "02 37 30 32 30 35 03 30 31"},
+            {"Y3", "02 37 30 33 30 35 03 30 32"},
+            {"Y4", "02 37 30 34 30 35 03 30 33"},
+            {"Y5", "02 37 30 35 30 35 03 30 34"},
+            {"Y6", "02 37 30 36 30 35 03 30 35"},
+            {"Y7", "02 37 30 37 30 35 03 30 36"},
+            {"Y10", "02 37 30 38 30 35 03 30 37"},
+            {"Y11", "02 37 30 39 30 35 03 30 38"},
+            {"Y12", "02 37 30 41 30 35 03 31 30"},
+            {"Y13", "02 37 30 42 30 35 03 31 31"},
+            {"Y14", "02 37 30 43 30 35 03 31 32"},
+            {"Y15", "02 37 30 44 30 35 03 31 33"},
+            {"Y16", "02 37 30 45 30 35 03 31 34"},
+            {"Y17", "02 37 30 46 30 35 03 31 35"}
+        };
+
+        public static readonly Dictionary<string, string> ForceOffCommands = new Dictionary<string, string> {
+            {"Y0", "02 38 30 30 30 35 03 30 30"},
+            {"Y1", "02 38 30 31 30 35 03 30 31"},
+            {"Y2", "02 38 30 32 30 35 03 30 32"},
+            {"Y3", "02 38 30 33 30 35 03 30 33"},
+            {"Y4", "02 38 30 34 30 35 03 30 34"},
+            {"Y5", "02 38 30 35 30 35 03 30 35"},
+            {"Y6", "02 38 30 36 30 35 03 30 36"},
+            {"Y7", "02 38 30 37 30 35 03 30 37"},
+            {"Y10", "02 38 30 38 30 35 03 30 38"},
+            {"Y11", "02 38 30 39 30 35 03 30 39"},
+            {"Y12", "02 38 30 41 30 35 03 31 31"},
+            {"Y13", "02 38 30 42 30 35 03 31 32"},
+            {"Y14", "02 38 30 43 30 35 03 31 33"},
+            {"Y15", "02 38 30 44 30 35 03 31 34"},
+            {"Y16", "02 38 30 45 30 35 03 31 35"},
+            {"Y17", "02 38 30 46 30 35 03 31 36"}
+        };
+
+        private Queue<string> forceQueue = new Queue<string>();
+        private bool waitingForResponse = false;
+        private int timeoutCounter = 0;
+        private int pollStep = 0;
+        private string currentCommand = "";
+        private List<byte> rxBuffer = new List<byte>();
+
+        public Form1()
+        {
+            InitializeComponent();
+            timerPoll.Interval = 100; // 100ms (Default value)
+// 100ms (我在這裡明確指定了！)
+            serialPort = new SerialPort();
+            serialPort.BaudRate = 9600;
+            serialPort.DataBits = 7;
+            serialPort.StopBits = StopBits.One;
+            serialPort.Parity = Parity.Even;
+            serialPort.DataReceived += SerialPort_DataReceived;
+            
+            cmbPorts.Items.AddRange(SerialPort.GetPortNames());
+            if (cmbPorts.Items.Count > 0) cmbPorts.SelectedIndex = 0;
+
+            X_Lights = new Panel[] { lightX0, lightX1, lightX2, lightX3, lightX4, lightX5, lightX6, lightX7, lightX8, lightX9, lightX10, lightX11, lightX12, lightX13, lightX14, lightX15 };
+            Y_Lights = new Panel[] { lightY0, lightY1, lightY2, lightY3, lightY4, lightY5, lightY6, lightY7, lightY8, lightY9, lightY10, lightY11, lightY12, lightY13, lightY14, lightY15 };
+
+            for (int i = 0; i < 16; i++)
+            {
+                System.Drawing.Drawing2D.GraphicsPath pathX = new System.Drawing.Drawing2D.GraphicsPath();
+                pathX.AddEllipse(0, 0, X_Lights[i].Width, X_Lights[i].Height);
+                X_Lights[i].Region = new Region(pathX);
+
+                System.Drawing.Drawing2D.GraphicsPath pathY = new System.Drawing.Drawing2D.GraphicsPath();
+                pathY.AddEllipse(0, 0, Y_Lights[i].Width, Y_Lights[i].Height);
+                Y_Lights[i].Region = new Region(pathY);
+            }
+        }
+
+        private void BtnConnect_Click(object sender, EventArgs e)
+        {
+            if (serialPort.IsOpen)
+            {
+                timerPoll.Stop();
+                serialPort.Close();
+                btnConnect.Text = "Connect";
+                lblStatus.Text = "Status: Disconnected";
+                lblStatus.ForeColor = Color.Red;
+            }
+            else
+            {
+                try
+                {
+                    if (cmbPorts.SelectedItem != null)
+                    {
+                        serialPort.PortName = cmbPorts.SelectedItem.ToString();
+                        serialPort.Open();
+                        btnConnect.Text = "Disconnect";
+                        lblStatus.Text = "Status: Connected";
+                        lblStatus.ForeColor = Color.Green;
+                        
+                        forceQueue.Clear();
+                        waitingForResponse = false;
+                        timeoutCounter = 0;
+                        pollStep = 0;
+                        rxBuffer.Clear();
+                        
+                        timerPoll.Start();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error opening port: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void BtnY_Click(object sender, EventArgs e)
+        {
+            if (!serialPort.IsOpen) return;
+
+            Button btn = (Button)sender;
+            int index = (int)btn.Tag;
+            string yName = Y_Names[index];
+            
+            // Determine state based on light color
+            bool isCurrentlyOn = Y_Lights[index].BackColor == Color.Lime;
+            
+            string cmdHex = isCurrentlyOn ? ForceOffCommands[yName] : ForceOnCommands[yName];
+            forceQueue.Enqueue(cmdHex);
+        }
+
+        private void TimerPoll_Tick(object sender, EventArgs e)
+        {
+            if (!serialPort.IsOpen) return;
+
+            if (waitingForResponse)
+            {
+                timeoutCounter++;
+                if (timeoutCounter > 5) // 500ms timeout
+                {
+                    waitingForResponse = false;
+                    timeoutCounter = 0;
+                    rxBuffer.Clear();
+                }
+                else
+                {
+                    return; // wait for response
+                }
+            }
+
+            if (forceQueue.Count > 0)
+            {
+                string cmd = forceQueue.Dequeue();
+                SendCommand(cmd, "FORCE");
+            }
+            else
+            {
+                if (pollStep == 0)
+                {
+                    SendCommand(ReadXCommand, "READ_X");
+                    pollStep = 1;
+                }
+                else
+                {
+                    SendCommand(ReadYCommand, "READ_Y");
+                    pollStep = 0;
+                }
+            }
+        }
+
+        private byte[] ParseHex(string hexString)
+        {
+            hexString = hexString.Replace(" ", "").Trim();
+            byte[] data = new byte[hexString.Length / 2];
+            for (int i = 0; i < data.Length; i++)
+            {
+                data[i] = Convert.ToByte(hexString.Substring(i * 2, 2), 16);
+            }
+            return data;
+        }
+
+        private void SendCommand(string hexCmd, string cmdType)
+        {
+            currentCommand = cmdType;
+            byte[] buffer = ParseHex(hexCmd);
+            try
+            {
+                if (serialPort.IsOpen)
+                {
+                    serialPort.Write(buffer, 0, buffer.Length);
+                    waitingForResponse = true;
+                    timeoutCounter = 0;
+                    rxBuffer.Clear();
+                }
+            }
+            catch { }
+        }
+
+        private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+            try
+            {
+                int bytes = serialPort.BytesToRead;
+                byte[] buf = new byte[bytes];
+                serialPort.Read(buf, 0, bytes);
+
+                this.Invoke(new Action(() =>
+                {
+                    rxBuffer.AddRange(buf);
+                    ProcessBuffer();
+                }));
+            }
+            catch { }
+        }
+
+        private void ProcessBuffer()
+        {
+            while (rxBuffer.Count > 0)
+            {
+                int stxIndex = rxBuffer.IndexOf(0x02);
+                if (stxIndex < 0)
+                {
+                    if(rxBuffer.IndexOf(0x06) >= 0) // ACK for force command
+                    {
+                        waitingForResponse = false;
+                        rxBuffer.Clear();
+                    }
+                    else if (rxBuffer.IndexOf(0x15) >= 0) // NAK
+                    {
+                        waitingForResponse = false;
+                        rxBuffer.Clear();
+                    }
+                    return; 
+                }
+
+                if (stxIndex > 0)
+                {
+                    rxBuffer.RemoveRange(0, stxIndex);
+                }
+
+                int etxIndex = rxBuffer.IndexOf(0x03);
+                if (etxIndex > 0)
+                {
+                    if (rxBuffer.Count >= etxIndex + 3) // Need 2 bytes for checksum
+                    {
+                        byte[] frame = rxBuffer.Take(etxIndex + 3).ToArray();
+                        rxBuffer.RemoveRange(0, etxIndex + 3);
+                        HandleFrame(frame);
+                        waitingForResponse = false;
+                    }
+                    else
+                    {
+                        return; // wait for checksum
+                    }
+                }
+                else
+                {
+                    return; // wait for ETX
+                }
+            }
+        }
+
+        private void HandleFrame(byte[] frame)
+        {
+            int dataLength = frame.Length - 4; // exclude STX, ETX, CHK1, CHK2
+            if (dataLength == 4) // Read response is 4 chars (16 bits)
+            {
+                string hexData = System.Text.Encoding.ASCII.GetString(frame, 1, 4);
+                try
+                {
+                    byte b1 = Convert.ToByte(hexData.Substring(0, 2), 16);
+                    byte b2 = Convert.ToByte(hexData.Substring(2, 2), 16);
+
+                    if (currentCommand == "READ_X")
+                    {
+                        UpdateLights(X_Lights, b1, b2);
+                    }
+                    else if (currentCommand == "READ_Y")
+                    {
+                        UpdateLights(Y_Lights, b1, b2);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private void UpdateLights(Panel[] lights, byte b1, byte b2)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                bool isOn = (b1 & (1 << i)) != 0;
+                lights[i].BackColor = isOn ? Color.Lime : Color.Gray;
+            }
+            for (int i = 0; i < 8; i++)
+            {
+                bool isOn = (b2 & (1 << i)) != 0;
+                lights[8 + i].BackColor = isOn ? Color.Lime : Color.Gray;
+            }
+        }
+        
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (serialPort != null && serialPort.IsOpen)
+            {
+                serialPort.Close();
+            }
+            base.OnFormClosing(e);
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+    }
+}
