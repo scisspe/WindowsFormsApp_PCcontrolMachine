@@ -321,6 +321,8 @@ namespace WindowsFormsApp_PCcontrolMachine
             }
         }
 
+        private bool prevX16State = false;
+
         private void UpdateLights(Panel[] lights, byte b1, byte b2)
         {
             for (int i = 0; i < 8; i++)
@@ -333,6 +335,23 @@ namespace WindowsFormsApp_PCcontrolMachine
                 bool isOn = (b2 & (1 << i)) != 0;
                 lights[8 + i].BackColor = isOn ? Color.Lime : Color.Gray;
             }
+
+            if (lights == X_Lights)
+            {
+                bool currentX16State = lights[14].BackColor == Color.Lime; // X16 is index 14
+                if (currentX16State && !prevX16State) // rising edge
+                {
+                    bool isWorkMode = lights[11].BackColor == Color.Lime; // X13 (COS1) = 工作模式
+                    // 假設單一循環模式時 COS2_L(X14) 和 COS2_R(X15) 都是 OFF (置中)
+                    bool isSingleCycle = lights[12].BackColor == Color.Gray && lights[13].BackColor == Color.Gray; 
+                    
+                    if (isWorkMode && isSingleCycle && !isRunningCycle) 
+                    {
+                        this.Invoke(new Action(() => { StartSingleCycleProcess(); }));
+                    }
+                }
+                prevX16State = currentX16State;
+            }
         }
         
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -344,46 +363,135 @@ namespace WindowsFormsApp_PCcontrolMachine
             base.OnFormClosing(e);
         }
 
-        private async void btnStartProcess_Click(object sender, EventArgs e)
+        private bool isRunningCycle = false;
+
+        private async Task WaitForSensor(int xIndex, bool targetState, int timeoutMs = 15000)
         {
-            if (!serialPort.IsOpen)
+            int elapsed = 0;
+            while ((X_Lights[xIndex].BackColor == Color.Lime) != targetState)
+            {
+                await Task.Delay(50);
+                elapsed += 50;
+                if (elapsed > timeoutMs) break; // timeout 保護
+            }
+        }
+
+        private void SetY(string yName, bool state)
+        {
+            if (state) forceQueue.Enqueue(ForceOnCommands[yName]);
+            else forceQueue.Enqueue(ForceOffCommands[yName]);
+        }
+
+        private void btnStartProcess_Click(object sender, EventArgs e)
+        {
+            StartSingleCycleProcess();
+        }
+
+        private async void StartSingleCycleProcess()
+        {
+            if (isRunningCycle) return;
+            if (serialPort == null || !serialPort.IsOpen)
             {
                 MessageBox.Show("請先連接 COM Port！", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
+            isRunningCycle = true;
             btnStartProcess.Enabled = false;
 
             try
             {
-                // RL 3秒 -> YL 3秒 -> GL 3秒
-                
-                // RL ON
-                forceQueue.Enqueue(ForceOnCommands[RL_Y_Name]);
+                // RL ON, GL OFF
+                SetY(RL_Y_Name, true);
                 lightRL.BackColor = Color.Red;
-                await Task.Delay(3000);
-                // RL OFF
-                forceQueue.Enqueue(ForceOffCommands[RL_Y_Name]);
-                lightRL.BackColor = Color.Gray;
-
-                // YL ON
-                forceQueue.Enqueue(ForceOnCommands[YL_Y_Name]);
-                lightYL.BackColor = Color.Yellow;
-                await Task.Delay(3000);
-                // YL OFF
-                forceQueue.Enqueue(ForceOffCommands[YL_Y_Name]);
-                lightYL.BackColor = Color.Gray;
-
-                // GL ON
-                forceQueue.Enqueue(ForceOnCommands[GL_Y_Name]);
-                lightGL.BackColor = Color.Lime;
-                await Task.Delay(3000);
-                // GL OFF
-                forceQueue.Enqueue(ForceOffCommands[GL_Y_Name]);
+                SetY(GL_Y_Name, false);
                 lightGL.BackColor = Color.Gray;
+
+                // 1. 推料氣壓缸推出 (A 伸出 Y0)
+                SetY("Y0", true);
+                await WaitForSensor(0, true); // wait for a1 (X0)
+
+                // 2. 判別出凹槽偏置方向 (X10 = s1, index 8)
+                await Task.Delay(500); // 稍微等待感測器穩定
+                bool isLeft = X_Lights[8].BackColor == Color.Lime; // X10 is mapped to index 8
+
+                // 3. 迴轉缸轉至可吸取料件方向
+                if (isLeft)
+                {
+                    // 凹槽在左側，轉至 +90°
+                    SetY("Y3", true);
+                    SetY("Y4", false);
+                    SetY("Y2", false);
+                    await WaitForSensor(3, true); // wait for b1 (X3)
+                }
+                else
+                {
+                    // 凹槽在右側，轉至 -90°
+                    SetY("Y4", true);
+                    SetY("Y3", false);
+                    SetY("Y2", false);
+                    await WaitForSensor(4, true); // wait for b2 (X4)
+                }
+
+                // 4. 配合垂直升降模組將料件吸取
+                // 垂直升降下降 (馬達 M+ Y7)
+                SetY("Y7", true);
+                await WaitForSensor(7, true); // wait for d1 (X7 下端點)
+                SetY("Y7", false);
+
+                // 真空吸盤吸 (Y5 ON, Y6 OFF)
+                SetY("Y5", true);
+                SetY("Y6", false);
+                await WaitForSensor(5, true); // wait for ps1 (X5 真空壓力開關)
+
+                // 垂直升降上升
+                SetY("Y7", true);
+                await WaitForSensor(6, true); // wait for d0 (X6 上端點)
+                SetY("Y7", false);
+
+                // 推料缸退回
+                SetY("Y0", false);
+
+                // 5. 將料件轉至 0°(凹槽在後)
+                SetY("Y3", false);
+                SetY("Y4", false);
+                SetY("Y2", true); // R2轉至0°輔助定位機構
+                await WaitForSensor(2, true); // wait for b0 (X2 0°端點)
+                SetY("Y2", false);
+
+                // 確保推料缸已退回
+                await WaitForSensor(1, true); // wait for a0 (X1 後端點)
+
+                // 6. 由出料斜坡排料
+                // 垂直升降下降
+                SetY("Y7", true);
+                await WaitForSensor(7, true); // wait for d1 (X7 下端點)
+                SetY("Y7", false);
+
+                // 放開料件
+                SetY("Y5", false);
+                SetY("Y6", true); // 破真空
+                await Task.Delay(500); // 吹氣0.5秒
+                SetY("Y6", false);
+
+                // 垂直升降上升
+                SetY("Y7", true);
+                await WaitForSensor(6, true); // wait for d0 (X6 上端點)
+                SetY("Y7", false);
+            }
+            catch (Exception)
+            {
+                // Sequence error
             }
             finally
             {
+                // 完成排料後，機構回到待機狀態，待機燈(GL)亮，運轉燈(RL)滅。
+                SetY(RL_Y_Name, false);
+                lightRL.BackColor = Color.Gray;
+                SetY(GL_Y_Name, true);
+                lightGL.BackColor = Color.Lime;
+
+                isRunningCycle = false;
                 btnStartProcess.Enabled = true;
             }
         }
