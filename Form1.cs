@@ -74,8 +74,8 @@ namespace WindowsFormsApp_PCcontrolMachine
         public Form1()
         {
             InitializeComponent();
-            timerPoll.Interval = 100; // 100ms (Default value)
-// 100ms (我在這裡明確指定了！)
+            timerPoll.Interval = 10; // 10ms (Default value)
+// 10ms (我在這裡明確指定了！)
             serialPort = new SerialPort();
             serialPort.BaudRate = 9600;
             serialPort.DataBits = 7;
@@ -352,6 +352,43 @@ namespace WindowsFormsApp_PCcontrolMachine
                 }
                 prevX16State = currentX16State;
             }
+            CheckStandbyState();
+        }
+
+        private bool isStandbyGLOn = false;
+        private void CheckStandbyState()
+        {
+            if (X_Lights[1] == null || Y_Lights[7] == null) return;
+            
+            bool isAAtBack = X_Lights[1].BackColor == Color.Lime; // X1 (a0)
+            bool isMStopped = Y_Lights[7].BackColor != Color.Lime; // Y7 (M+)
+            bool isDAtTop = X_Lights[6].BackColor == Color.Lime; // X6 (d0)
+            bool isCOff = Y_Lights[5].BackColor != Color.Lime; // Y5 (C+)
+            
+            bool currentStandby = isAAtBack && isMStopped && isDAtTop && isCOff && !isRunningCycle;
+
+            if (currentStandby && !isStandbyGLOn)
+            {
+                SetY(GL_Y_Name, true);
+                isStandbyGLOn = true;
+            }
+            else if (!currentStandby && isStandbyGLOn)
+            {
+                SetY(GL_Y_Name, false);
+                isStandbyGLOn = false;
+            }
+        }
+        
+        private void ShowMessage(string msg)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => { lblMessage.Text = msg; }));
+            }
+            else
+            {
+                lblMessage.Text = msg;
+            }
         }
         
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -398,24 +435,55 @@ namespace WindowsFormsApp_PCcontrolMachine
 
             isRunningCycle = true;
             btnStartProcess.Enabled = false;
+            ShowMessage(""); // clear message
 
             try
             {
-                // RL ON, GL OFF
+                // RL ON
                 SetY(RL_Y_Name, true);
                 lightRL.BackColor = Color.Red;
-                SetY(GL_Y_Name, false);
-                lightGL.BackColor = Color.Gray;
+                // GL is handled automatically by CheckStandbyState
 
                 // 1. 推料氣壓缸推出 (A 伸出 Y0)
+                ShowMessage("1. 推料氣壓缸推出 (A 伸出 Y0)");
                 SetY("Y0", true);
-                await WaitForSensor(0, true); // wait for a1 (X0)
 
                 // 2. 判別出凹槽偏置方向 (X10 = s1, index 8)
-                await Task.Delay(500); // 稍微等待感測器穩定
-                bool isLeft = X_Lights[8].BackColor == Color.Lime; // X10 is mapped to index 8
+                ShowMessage("2. 判別出凹槽偏置方向");
+                int s1PulseCount = 0;
+                bool prevS1State = X_Lights[8].BackColor == Color.Lime;
+                int elapsed = 0;
+                
+                // 等待 a1 推料缸前端點 (X0) 亮起，期間計算 s1 從 off 轉 on 的次數
+                while (X_Lights[0].BackColor != Color.Lime)
+                {
+                    bool currentS1State = X_Lights[8].BackColor == Color.Lime;
+                    if (currentS1State && !prevS1State) s1PulseCount++;
+                    prevS1State = currentS1State;
+
+                    await Task.Delay(20); // 快速輪詢
+                    elapsed += 20;
+                    if (elapsed > 15000) break; 
+                }
+
+                bool isLeft = false;
+                if (s1PulseCount == 2)
+                {
+                    isLeft = false; // 右側
+                }
+                else if (s1PulseCount == 1)
+                {
+                    isLeft = true; // 左側
+                }
+                else
+                {
+                    ShowMessage("方向感測器非左非右");
+                    SetY("Y0", false); // 退回推料缸
+                    return; // 停止動作
+                }
 
                 // 3. 迴轉缸轉至可吸取料件方向
+                ShowMessage("3. 迴轉缸轉至可吸取料件方向");
                 if (isLeft)
                 {
                     // 凹槽在左側，轉至 +90°
@@ -434,62 +502,73 @@ namespace WindowsFormsApp_PCcontrolMachine
                 }
 
                 // 4. 配合垂直升降模組將料件吸取
+                ShowMessage("4. 配合垂直升降模組將料件吸取");
                 // 垂直升降下降 (馬達 M+ Y7)
+                ShowMessage("垂直升降下降 (馬達 M+ Y7)");
                 SetY("Y7", true);
+                SetY("Y5", true);
+                SetY("Y6", false);
                 await WaitForSensor(7, true); // wait for d1 (X7 下端點)
                 SetY("Y7", false);
 
                 // 真空吸盤吸 (Y5 ON, Y6 OFF)
-                SetY("Y5", true);
-                SetY("Y6", false);
+                ShowMessage("真空吸盤吸 (Y5 ON, Y6 OFF)");
                 await WaitForSensor(5, true); // wait for ps1 (X5 真空壓力開關)
 
                 // 垂直升降上升
+                ShowMessage("垂直升降上升");
                 SetY("Y7", true);
                 await WaitForSensor(6, true); // wait for d0 (X6 上端點)
                 SetY("Y7", false);
 
                 // 推料缸退回
+                ShowMessage("推料缸退回");
                 SetY("Y0", false);
 
                 // 5. 將料件轉至 0°(凹槽在後)
-                SetY("Y3", false);
-                SetY("Y4", false);
-                SetY("Y2", true); // R2轉至0°輔助定位機構
+                ShowMessage("5. 將料件轉至 0°(凹槽在後)");
+                SetY("Y3", true);
+                SetY("Y4", true);
+                SetY("Y2", true); // 依照指示三者皆ON
                 await WaitForSensor(2, true); // wait for b0 (X2 0°端點)
-                SetY("Y2", false);
+                await Task.Delay(500); // 再等待0.5秒
 
                 // 確保推料缸已退回
+                ShowMessage("確保推料缸已退回");
                 await WaitForSensor(1, true); // wait for a0 (X1 後端點)
 
                 // 6. 由出料斜坡排料
+                ShowMessage("6. 由出料斜坡排料");
                 // 垂直升降下降
+                ShowMessage("垂直升降下降");
                 SetY("Y7", true);
                 await WaitForSensor(7, true); // wait for d1 (X7 下端點)
                 SetY("Y7", false);
 
                 // 放開料件
+                ShowMessage("放開料件");
                 SetY("Y5", false);
                 SetY("Y6", true); // 破真空
                 await Task.Delay(500); // 吹氣0.5秒
                 SetY("Y6", false);
 
                 // 垂直升降上升
+                ShowMessage("垂直升降上升");
                 SetY("Y7", true);
                 await WaitForSensor(6, true); // wait for d0 (X6 上端點)
                 SetY("Y7", false);
+                
+                ShowMessage("排料完成，回到待機狀態");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Sequence error
+                ShowMessage("發生錯誤: " + ex.Message);
             }
             finally
             {
-                // 完成排料後，機構回到待機狀態，待機燈(GL)亮，運轉燈(RL)滅。
+                // 完成排料後，機構回到待機狀態，運轉燈(RL)滅。待機燈(GL)將由 CheckStandbyState 處理。
                 SetY(RL_Y_Name, false);
                 lightRL.BackColor = Color.Gray;
-                SetY(GL_Y_Name, true);
-                lightGL.BackColor = Color.Lime;
 
                 isRunningCycle = false;
                 btnStartProcess.Enabled = true;

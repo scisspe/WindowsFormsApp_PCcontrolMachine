@@ -152,6 +152,7 @@ namespace WindowsFormsApp_PCcontrolMachine
             this.lightGL = new System.Windows.Forms.Panel();
             this.lblGL = new System.Windows.Forms.Label();
             this.btnStartProcess = new System.Windows.Forms.Button();
+            this.lblMessage = new System.Windows.Forms.Label();
             this.timerPoll = new System.Windows.Forms.Timer(this.components);
             this.serialPort1 = new System.IO.Ports.SerialPort(this.components);
             this.pnlTop.SuspendLayout();
@@ -1544,6 +1545,7 @@ namespace WindowsFormsApp_PCcontrolMachine
             this.flowProcess.Controls.Add(this.pnlYLContainer);
             this.flowProcess.Controls.Add(this.pnlGLContainer);
             this.flowProcess.Controls.Add(this.btnStartProcess);
+            this.flowProcess.Controls.Add(this.lblMessage);
             this.flowProcess.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowProcess.Location = new System.Drawing.Point(3, 26);
             this.flowProcess.Name = "flowProcess";
@@ -1648,6 +1650,18 @@ namespace WindowsFormsApp_PCcontrolMachine
             this.btnStartProcess.Text = "Start Process";
             this.btnStartProcess.UseVisualStyleBackColor = true;
             this.btnStartProcess.Click += new System.EventHandler(this.btnStartProcess_Click);
+            // 
+            // lblMessage
+            // 
+            this.lblMessage.AutoSize = true;
+            this.lblMessage.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Regular);
+            this.lblMessage.ForeColor = System.Drawing.Color.Red;
+            this.lblMessage.Location = new System.Drawing.Point(15, 215);
+            this.lblMessage.Margin = new System.Windows.Forms.Padding(5);
+            this.lblMessage.Name = "lblMessage";
+            this.lblMessage.Size = new System.Drawing.Size(160, 40);
+            this.lblMessage.TabIndex = 4;
+            this.lblMessage.Text = "";
             
             this.ResumeLayout(false);
 
@@ -1790,6 +1804,7 @@ namespace WindowsFormsApp_PCcontrolMachine
         private System.Windows.Forms.Panel lightGL;
         private System.Windows.Forms.Label lblGL;
         private System.Windows.Forms.Button btnStartProcess;
+        private System.Windows.Forms.Label lblMessage;
         private System.IO.Ports.SerialPort serialPort1;
     }
 }
