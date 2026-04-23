@@ -140,6 +140,18 @@ namespace WindowsFormsApp_PCcontrolMachine
             this.lightY15 = new System.Windows.Forms.Panel();
             this.lblY15 = new System.Windows.Forms.Label();
             this.btnY15 = new System.Windows.Forms.Button();
+            this.grpProcess = new System.Windows.Forms.GroupBox();
+            this.flowProcess = new System.Windows.Forms.FlowLayoutPanel();
+            this.pnlRLContainer = new System.Windows.Forms.Panel();
+            this.lightRL = new System.Windows.Forms.Panel();
+            this.lblRL = new System.Windows.Forms.Label();
+            this.pnlYLContainer = new System.Windows.Forms.Panel();
+            this.lightYL = new System.Windows.Forms.Panel();
+            this.lblYL = new System.Windows.Forms.Label();
+            this.pnlGLContainer = new System.Windows.Forms.Panel();
+            this.lightGL = new System.Windows.Forms.Panel();
+            this.lblGL = new System.Windows.Forms.Label();
+            this.btnStartProcess = new System.Windows.Forms.Button();
             this.timerPoll = new System.Windows.Forms.Timer(this.components);
             this.serialPort1 = new System.IO.Ports.SerialPort(this.components);
             this.pnlTop.SuspendLayout();
@@ -180,6 +192,11 @@ namespace WindowsFormsApp_PCcontrolMachine
             this.pnlYContainer13.SuspendLayout();
             this.pnlYContainer14.SuspendLayout();
             this.pnlYContainer15.SuspendLayout();
+            this.grpProcess.SuspendLayout();
+            this.flowProcess.SuspendLayout();
+            this.pnlRLContainer.SuspendLayout();
+            this.pnlYLContainer.SuspendLayout();
+            this.pnlGLContainer.SuspendLayout();
             this.SuspendLayout();
             // 
             // pnlTop
@@ -236,6 +253,7 @@ namespace WindowsFormsApp_PCcontrolMachine
             // 
             this.flowMain.Controls.Add(this.grpX);
             this.flowMain.Controls.Add(this.grpY);
+            this.flowMain.Controls.Add(this.grpProcess);
             this.flowMain.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowMain.Location = new System.Drawing.Point(0, 60);
             this.flowMain.Name = "flowMain";
@@ -1508,6 +1526,129 @@ namespace WindowsFormsApp_PCcontrolMachine
             this.pnlYContainer14.PerformLayout();
             this.pnlYContainer15.ResumeLayout(false);
             this.pnlYContainer15.PerformLayout();
+            // 
+            // grpProcess
+            // 
+            this.grpProcess.Controls.Add(this.flowProcess);
+            this.grpProcess.Location = new System.Drawing.Point(670, 30);
+            this.grpProcess.Margin = new System.Windows.Forms.Padding(10);
+            this.grpProcess.Name = "grpProcess";
+            this.grpProcess.Size = new System.Drawing.Size(200, 450);
+            this.grpProcess.TabIndex = 2;
+            this.grpProcess.TabStop = false;
+            this.grpProcess.Text = "Process Control";
+            // 
+            // flowProcess
+            // 
+            this.flowProcess.Controls.Add(this.pnlRLContainer);
+            this.flowProcess.Controls.Add(this.pnlYLContainer);
+            this.flowProcess.Controls.Add(this.pnlGLContainer);
+            this.flowProcess.Controls.Add(this.btnStartProcess);
+            this.flowProcess.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.flowProcess.Location = new System.Drawing.Point(3, 26);
+            this.flowProcess.Name = "flowProcess";
+            this.flowProcess.Padding = new System.Windows.Forms.Padding(10);
+            this.flowProcess.Size = new System.Drawing.Size(194, 421);
+            this.flowProcess.TabIndex = 0;
+            // 
+            // pnlRLContainer
+            // 
+            this.pnlRLContainer.Controls.Add(this.lightRL);
+            this.pnlRLContainer.Controls.Add(this.lblRL);
+            this.pnlRLContainer.Location = new System.Drawing.Point(15, 15);
+            this.pnlRLContainer.Margin = new System.Windows.Forms.Padding(5);
+            this.pnlRLContainer.Name = "pnlRLContainer";
+            this.pnlRLContainer.Size = new System.Drawing.Size(160, 40);
+            this.pnlRLContainer.TabIndex = 0;
+            // 
+            // lightRL
+            // 
+            this.lightRL.BackColor = System.Drawing.Color.Gray;
+            this.lightRL.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.lightRL.Location = new System.Drawing.Point(10, 7);
+            this.lightRL.Name = "lightRL";
+            this.lightRL.Size = new System.Drawing.Size(25, 25);
+            this.lightRL.TabIndex = 0;
+            // 
+            // lblRL
+            // 
+            this.lblRL.AutoSize = true;
+            this.lblRL.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.lblRL.Location = new System.Drawing.Point(45, 10);
+            this.lblRL.Name = "lblRL";
+            this.lblRL.Size = new System.Drawing.Size(31, 23);
+            this.lblRL.TabIndex = 1;
+            this.lblRL.Text = "RL (Red)";
+            // 
+            // pnlYLContainer
+            // 
+            this.pnlYLContainer.Controls.Add(this.lightYL);
+            this.pnlYLContainer.Controls.Add(this.lblYL);
+            this.pnlYLContainer.Location = new System.Drawing.Point(15, 65);
+            this.pnlYLContainer.Margin = new System.Windows.Forms.Padding(5);
+            this.pnlYLContainer.Name = "pnlYLContainer";
+            this.pnlYLContainer.Size = new System.Drawing.Size(160, 40);
+            this.pnlYLContainer.TabIndex = 1;
+            // 
+            // lightYL
+            // 
+            this.lightYL.BackColor = System.Drawing.Color.Gray;
+            this.lightYL.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.lightYL.Location = new System.Drawing.Point(10, 7);
+            this.lightYL.Name = "lightYL";
+            this.lightYL.Size = new System.Drawing.Size(25, 25);
+            this.lightYL.TabIndex = 0;
+            // 
+            // lblYL
+            // 
+            this.lblYL.AutoSize = true;
+            this.lblYL.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.lblYL.Location = new System.Drawing.Point(45, 10);
+            this.lblYL.Name = "lblYL";
+            this.lblYL.Size = new System.Drawing.Size(31, 23);
+            this.lblYL.TabIndex = 1;
+            this.lblYL.Text = "YL (Yellow)";
+            // 
+            // pnlGLContainer
+            // 
+            this.pnlGLContainer.Controls.Add(this.lightGL);
+            this.pnlGLContainer.Controls.Add(this.lblGL);
+            this.pnlGLContainer.Location = new System.Drawing.Point(15, 115);
+            this.pnlGLContainer.Margin = new System.Windows.Forms.Padding(5);
+            this.pnlGLContainer.Name = "pnlGLContainer";
+            this.pnlGLContainer.Size = new System.Drawing.Size(160, 40);
+            this.pnlGLContainer.TabIndex = 2;
+            // 
+            // lightGL
+            // 
+            this.lightGL.BackColor = System.Drawing.Color.Gray;
+            this.lightGL.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.lightGL.Location = new System.Drawing.Point(10, 7);
+            this.lightGL.Name = "lightGL";
+            this.lightGL.Size = new System.Drawing.Size(25, 25);
+            this.lightGL.TabIndex = 0;
+            // 
+            // lblGL
+            // 
+            this.lblGL.AutoSize = true;
+            this.lblGL.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.lblGL.Location = new System.Drawing.Point(45, 10);
+            this.lblGL.Name = "lblGL";
+            this.lblGL.Size = new System.Drawing.Size(31, 23);
+            this.lblGL.TabIndex = 1;
+            this.lblGL.Text = "GL (Green)";
+            // 
+            // btnStartProcess
+            // 
+            this.btnStartProcess.Location = new System.Drawing.Point(15, 165);
+            this.btnStartProcess.Margin = new System.Windows.Forms.Padding(5);
+            this.btnStartProcess.Name = "btnStartProcess";
+            this.btnStartProcess.Size = new System.Drawing.Size(160, 40);
+            this.btnStartProcess.TabIndex = 3;
+            this.btnStartProcess.Text = "Start Process";
+            this.btnStartProcess.UseVisualStyleBackColor = true;
+            this.btnStartProcess.Click += new System.EventHandler(this.btnStartProcess_Click);
+            
             this.ResumeLayout(false);
 
         }
@@ -1637,6 +1778,18 @@ namespace WindowsFormsApp_PCcontrolMachine
         private System.Windows.Forms.Panel lightY15;
         private System.Windows.Forms.Label lblY15;
         private System.Windows.Forms.Button btnY15;
+        private System.Windows.Forms.GroupBox grpProcess;
+        private System.Windows.Forms.FlowLayoutPanel flowProcess;
+        private System.Windows.Forms.Panel pnlRLContainer;
+        private System.Windows.Forms.Panel lightRL;
+        private System.Windows.Forms.Label lblRL;
+        private System.Windows.Forms.Panel pnlYLContainer;
+        private System.Windows.Forms.Panel lightYL;
+        private System.Windows.Forms.Label lblYL;
+        private System.Windows.Forms.Panel pnlGLContainer;
+        private System.Windows.Forms.Panel lightGL;
+        private System.Windows.Forms.Label lblGL;
+        private System.Windows.Forms.Button btnStartProcess;
         private System.IO.Ports.SerialPort serialPort1;
     }
 }

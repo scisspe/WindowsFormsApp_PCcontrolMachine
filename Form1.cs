@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO.Ports;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace WindowsFormsApp_PCcontrolMachine
@@ -10,6 +11,11 @@ namespace WindowsFormsApp_PCcontrolMachine
     public partial class Form1 : Form
     {
         private SerialPort serialPort;
+        
+        // Y接點對應
+        private string RL_Y_Name = "Y15"; 
+        private string YL_Y_Name = "Y16"; 
+        private string GL_Y_Name = "Y17"; 
         
         private Panel[] X_Lights = new Panel[16];
         private Panel[] Y_Lights = new Panel[16];
@@ -93,6 +99,18 @@ namespace WindowsFormsApp_PCcontrolMachine
                 pathY.AddEllipse(0, 0, Y_Lights[i].Width, Y_Lights[i].Height);
                 Y_Lights[i].Region = new Region(pathY);
             }
+
+            System.Drawing.Drawing2D.GraphicsPath pathRL = new System.Drawing.Drawing2D.GraphicsPath();
+            pathRL.AddEllipse(0, 0, lightRL.Width, lightRL.Height);
+            lightRL.Region = new Region(pathRL);
+
+            System.Drawing.Drawing2D.GraphicsPath pathYL = new System.Drawing.Drawing2D.GraphicsPath();
+            pathYL.AddEllipse(0, 0, lightYL.Width, lightYL.Height);
+            lightYL.Region = new Region(pathYL);
+
+            System.Drawing.Drawing2D.GraphicsPath pathGL = new System.Drawing.Drawing2D.GraphicsPath();
+            pathGL.AddEllipse(0, 0, lightGL.Width, lightGL.Height);
+            lightGL.Region = new Region(pathGL);
         }
 
         private void BtnConnect_Click(object sender, EventArgs e)
@@ -324,6 +342,50 @@ namespace WindowsFormsApp_PCcontrolMachine
                 serialPort.Close();
             }
             base.OnFormClosing(e);
+        }
+
+        private async void btnStartProcess_Click(object sender, EventArgs e)
+        {
+            if (!serialPort.IsOpen)
+            {
+                MessageBox.Show("請先連接 COM Port！", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            btnStartProcess.Enabled = false;
+
+            try
+            {
+                // RL 3秒 -> YL 3秒 -> GL 3秒
+                
+                // RL ON
+                forceQueue.Enqueue(ForceOnCommands[RL_Y_Name]);
+                lightRL.BackColor = Color.Red;
+                await Task.Delay(3000);
+                // RL OFF
+                forceQueue.Enqueue(ForceOffCommands[RL_Y_Name]);
+                lightRL.BackColor = Color.Gray;
+
+                // YL ON
+                forceQueue.Enqueue(ForceOnCommands[YL_Y_Name]);
+                lightYL.BackColor = Color.Yellow;
+                await Task.Delay(3000);
+                // YL OFF
+                forceQueue.Enqueue(ForceOffCommands[YL_Y_Name]);
+                lightYL.BackColor = Color.Gray;
+
+                // GL ON
+                forceQueue.Enqueue(ForceOnCommands[GL_Y_Name]);
+                lightGL.BackColor = Color.Lime;
+                await Task.Delay(3000);
+                // GL OFF
+                forceQueue.Enqueue(ForceOffCommands[GL_Y_Name]);
+                lightGL.BackColor = Color.Gray;
+            }
+            finally
+            {
+                btnStartProcess.Enabled = true;
+            }
         }
 
         private void Form1_Load(object sender, EventArgs e)
